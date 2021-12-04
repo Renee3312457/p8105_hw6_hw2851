@@ -12,23 +12,29 @@ library(mgcv)
 
 
 ```
+# Problem 1 
 
+read and clean data
 ```{r, include=FALSE}
 birth_weight_df = 
   read_csv("./birthweight.csv")%>%
   na.omit() %>%
   mutate(
-    babysex = as.factor(babysex),
-    frace = as.factor(frace),
-    malform  = as.factor(malform ),
-    mrace = as.factor(mrace)
+   babysex = recode_factor(babysex, "1" = "male", "2" = "female"),
+    frace = recode_factor(frace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other", "9" = "Unkown"),
+    mrace = recode_factor(mrace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other"),
+    malform = recode_factor(malform, "0" = "absent", "1" = "present")
   )
 
 birth_weight_df
 ```
 
-```{r, include=FALSE}
+After cleaning the data , we have seen variable "pnumsga" and "pnumlbw" are all 0 across the dataset, and variable "parity"and "malform" have less than five values included, so we exclude those variables and take the others as the predictors.
 
+```{r, include=FALSE}
+birth_weight_df %>%
+  select()
+  
 ```
 ## R Markdown
 
