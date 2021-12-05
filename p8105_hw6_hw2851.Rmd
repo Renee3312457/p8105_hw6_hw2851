@@ -135,7 +135,7 @@ r_squared %>%
 ```
 It roughly follows normal distribution with mean around 0.913.
 
-Similarly, we compute $\log(\hat{\beta_0} * \hat{\beta_1})$:
+Similarly, we compute log(beta_0 * beta_1):
 ```{r}
 log_beta_products =
 bootstrap_results %>%
@@ -165,4 +165,4 @@ log_beta_products %>%
   ggplot(aes(x = log_beta_product)) + geom_density()
 ```
 
-$\log(\hat{\beta_0} * \hat{\beta_1})$ also roughly follows normal distribution, with mean around 2.01.
+It also roughly follows normal distribution, with mean around 2.01.
