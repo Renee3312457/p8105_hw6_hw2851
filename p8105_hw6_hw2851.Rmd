@@ -17,7 +17,7 @@ library(mgcv)
 read and clean data
 ```{r, include=FALSE}
 birth_weight_df = 
-  read_csv("./birthweight.csv")%>%
+  read_csv("./birthweight.csv") %>%
   na.omit() %>%
   mutate(
    babysex = recode_factor(babysex, "1" = "male", "2" = "female"),
@@ -26,6 +26,8 @@ birth_weight_df =
     malform = recode_factor(malform, "0" = "absent", "1" = "present")
   )
 
+```
+```{r}
 birth_weight_df
 ```
 
@@ -36,22 +38,57 @@ birth_weight_df %>%
   select()
   
 ```
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Low birth weight is a major public health problem. As such, there is a large number of research literature studying the underlying factors that may affect birth weight, so we decide to choose the predictors based on existing research.
+In particular, we referred to this article: Metgud, Chandra S., Vijaya A. Naik, and Maheshwar D. Mallapur. "Factors affecting birth weight of a newborn–a community based study in rural Karnataka, India." PloS one 7.7 (2012): e40040.
+The authors identified a few factors that are significantly associated with birth weight: exposure to passive smoking, age at first pregnancy, birth interval, weight gain during pregnancy, etc. We checked this list of factors against the given dataset and decide to use the following variables as predictors: babysex, delwt, fincome, malform, momage, smoken and wtgain.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+The next step is to decide a model to use. Based on the literature, many of these factors has non-linear impact on birth weight. Thus, we decide to use glm instead of lm.
 
-```{r cars}
-summary(cars)
+```{r}
+fit = glm(bwt ~ babysex + delwt + fincome + malform + momage + smoken + wtgain, data = birth_weight_df)
+birth_weight_df %>%
+  modelr::add_residuals(fit) %>%
+  modelr::add_predictions(fit) %>%
+  ggplot(aes(x = pred, y = resid)) + geom_point() + geom_smooth(method='lm') +
+  labs(
+    x = "Fitted values",
+    y = "Residuals",
+    title = "Birth weight prediction model residuals against fitted values"
+  )
+```
+Looking at the plot, residuals are centered around 0 and are mostly symmetrical. This can also be seen from the lm regression line we added to the plot. There are a few outliers, but for most of the data points we are making a reasonable prediction with a small residual.
+
+Now we compare our model against the other two models, using cross validation.
+```{r}
+cv_df =
+  crossv_mc(birth_weight_df, 100) %>%
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  ) %>%
+  mutate(
+    our_method = map(train, ~glm(bwt ~ babysex + delwt + fincome + malform + momage + smoken + wtgain, data = .x) ),
+    blength_gaweeks_method = map(train, ~glm(bwt ~ blength + gaweeks, data = .x)),
+    bhead_blength_babysex_method = map(train, ~glm(bwt ~ bhead * blength * babysex, data = .x))
+  ) %>%
+  mutate(
+    rmse_our = map2_dbl(our_method, test, ~rmse(model = .x, data = .y)),
+    rmse_blength_gaweeks = map2_dbl(blength_gaweeks_method, test, ~rmse(model = .x, data = .y)),
+    rmse_bhead_blength_babysex = map2_dbl(bhead_blength_babysex_method, test, ~rmse(model = .x, data = .y))
+  )
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+We post-process the cross-validation result a bit to get the violin plot of the RMSE errors of the three models:
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>%
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+From the plot, it's clear that the model using head circumference, length, sex, and all interactions is the best-performing one, with mean RMSE of `r mean(cv_df$rmse_bhead_blength_babysex)`; the model using length at birth and gestational age is the second best performing, with mean RMSE of `r mean(cv_df$rmse_blength_gaweeks)`. Our model, unfortunately, performs worse than the other two models with mean RMSE of `r mean(cv_df$rmse_our)`.
